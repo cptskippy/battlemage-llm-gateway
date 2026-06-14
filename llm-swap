@@ -25,7 +25,7 @@ case "$1" in
     curl -sS "$ENDPOINT/v1/models" | jq -r '.data[].id'
     ;;
   status)
-models=$(curl -sS "$ENDPOINT/running" | jq -r '.running[]? | select(.state == "ready") | .model')
+    models=$(curl -sS "$ENDPOINT/running" | jq -r '.running[]? | select(.state == "ready") | .model')
     if [ -z "$models" ]; then
       echo "(no model loaded)"
     else
