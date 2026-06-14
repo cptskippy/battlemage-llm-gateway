@@ -76,8 +76,9 @@ llm-swap qwen3.6-27b                        # preload (returns when warm — ~22
 llm-swap gemma-4-31b
 llm-swap deepseek-r1-32b
 llm-swap list                               # configured models
-llm-swap status                             # currently loaded model
-llm-swap unload                             # free VRAM
+llm-swap status                             # currently loaded model(s)
+llm-swap unload                             # unload all models
+llm-swap unload qwen3.6-27b                 # unload a specific model
 ```
 
 ## Using opencode
