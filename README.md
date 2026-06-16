@@ -88,7 +88,7 @@ llm-swap unload <model>                     # unload a specific model
 
 ```bash
 opencode                                    # interactive TUI, default model (first discovered)
-opencode -m local-b70/<model>               # interactive TUI, specific model
+opencode -m local/<model>               # interactive TUI, specific model
 opencode run "summarize this file" @file.py  # one-shot, default model
 ```
 
@@ -97,8 +97,8 @@ Inside the TUI, `/model` switches between models transparently.
 ## Using pi
 
 ```bash
-pi --provider local-b70 --model <model>
-pi --provider local-b70 --model <model> -p "one-shot prompt"
+pi --provider local --model <model>
+pi --provider local --model <model> -p "one-shot prompt"
 ```
 
 ## Using the API Directly

@@ -74,7 +74,7 @@ MODELS_DIR="$HOME/.lmstudio/models"
 # llama-swap YAML defaults (applied to every generated model/group entry)
 LLAMA_HEALTH_CHECK_TIMEOUT=180
 LLAMA_LOG_LEVEL="info"
-LLAMA_MODEL_TTL=1800
+LLAMA_MODEL_TTL=0
 LLAMA_GROUP_SWAP=true
 LLAMA_GROUP_EXCLUSIVE=false
 
@@ -387,9 +387,9 @@ default_model="${DIS_ALIAS[0]}"
   echo '  "$schema": "https://opencode.ai/config.json",'
   echo ''
   echo '  "provider": {'
-  echo '    "local-b70": {'
+  echo '    "local": {'
   echo '      "npm": "@ai-sdk/openai-compatible",'
-  echo '      "name": "Local B70 (llama-swap)",'
+  echo '      "name": "Local (llama-swap)",'
   echo '      "options": {'
   echo "        \"baseURL\": \"http://127.0.0.1:${LLAMA_SWAP_PORT}/v1\","
   echo '        "apiKey": "local"'
@@ -413,7 +413,7 @@ default_model="${DIS_ALIAS[0]}"
   echo '    }'
   echo '  },'
   echo ''
-  echo "  \"model\": \"local-b70/${default_model}\""
+  echo "  \"model\": \"local/${default_model}\""
   echo '}'
 } > "$OPENCODE_CONFIG_DIR/opencode.json"
 
@@ -440,7 +440,7 @@ mkdir -p "$PI_CONFIG_DIR"
 {
   echo '{'
   echo '  "providers": {'
-  echo '    "local-b70": {'
+  echo '    "local": {'
   echo "      \"baseUrl\": \"http://127.0.0.1:${LLAMA_SWAP_PORT}/v1\","
   echo '      "api": "openai-completions",'
   echo '      "apiKey": "local",'
@@ -516,10 +516,10 @@ ${model_list}  llm-swap list | status | unload
 
 opencode (interactive TUI):
   opencode                                    # default model (${default_model})
-  opencode -m local-b70/<model>               # switch model
+  opencode -m local/<model>               # switch model
 
 pi coding agent:
-  pi --provider local-b70 --model <model>
+  pi --provider local --model <model>
   pi config                                   # TUI for extensions
 
 API endpoint:
