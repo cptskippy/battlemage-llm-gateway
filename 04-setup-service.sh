@@ -132,14 +132,14 @@ else
 
   log "Downloading llama-swap from $LLAMA_SWAP_URL..."
 
-  TMPDIR=$(mktemp -d)
-  trap 'rm -rf "$TMPDIR"' EXIT
+  SWAP_TMPDIR=$(mktemp -d)
+  trap 'rm -rf "$SWAP_TMPDIR"' EXIT
 
-  curl -fsSL -o "$TMPDIR/llama-swap.tar.gz" "$LLAMA_SWAP_URL"
+  curl -fsSL -o "$SWAP_TMPDIR/llama-swap.tar.gz" "$LLAMA_SWAP_URL"
 
-  tar -xzf "$TMPDIR/llama-swap.tar.gz" -C "$TMPDIR"
+  tar -xzf "$SWAP_TMPDIR/llama-swap.tar.gz" -C "$SWAP_TMPDIR"
 
-  LLAMA_SWAP_BIN=$(find "$TMPDIR" -type f -name "llama-swap" | head -1)
+  LLAMA_SWAP_BIN=$(find "$SWAP_TMPDIR" -type f -name "llama-swap" | head -1)
 
   if [[ -z "$LLAMA_SWAP_BIN" ]]; then
     die "Could not find llama-swap binary inside downloaded archive."
@@ -213,7 +213,7 @@ while IFS= read -r -d '' gguf; do
     # Extract --alias value
     if [[ "$line" == --alias* ]]; then
       alias_val="${line#--alias }"
-      alias_val="${line#--alias}"
+      alias_val="${alias_val#--alias}"
       alias_val="${alias_val#"${alias_val%%[![:space:]]*}"}"
       continue
     fi
@@ -221,7 +221,7 @@ while IFS= read -r -d '' gguf; do
     # Extract --port value
     if [[ "$line" == --port* ]]; then
       port_val="${line#--port }"
-      port_val="${line#--port}"
+      port_val="${port_val#--port}"
       port_val="${port_val#"${port_val%%[![:space:]]*}"}"
       continue
     fi

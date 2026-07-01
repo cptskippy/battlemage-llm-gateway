@@ -22,15 +22,15 @@ info() { echo "    $*" >&2; }
 warn() { echo "WARN: $*" >&2; }
 die()  { echo "ERROR: $*" >&2; exit 1; }
 
-TMPDIR=$(mktemp -d)
-trap 'rm -rf "$TMPDIR"' EXIT
+FW_TMPDIR=$(mktemp -d)
+trap 'rm -rf "$FW_TMPDIR"' EXIT
 
 log "Cloning linux-firmware..."
 git clone --depth=1 \
   https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git \
-  "$TMPDIR/linux-firmware"
+  "$FW_TMPDIR/linux-firmware"
 
-FW_SRC="$TMPDIR/linux-firmware/xe"
+FW_SRC="$FW_TMPDIR/linux-firmware/xe"
 FW_DST="/lib/firmware/xe"
 
 log "Creating firmware directory..."

@@ -202,11 +202,12 @@ if [ "$SKIP_CR" -eq 0 ]; then
     fi
   done
 
-  TOTAL=$(wc -l < "$DEB_LIST")
-  info "Installing $TOTAL packages..."
+  deb_count=$(wc -l < "$DEB_LIST")
+  info "Installing $deb_count packages..."
   xargs sudo dpkg -i < "$DEB_LIST" || sudo apt-get install -f -y
 
   info "compute-runtime $CR_VERSION + IGC $IGC_VERSION installed."
+  rm -rf "$CR_TMP"
 fi
 
 # ── 2.5. Level Zero loader ───────────────────────────────────────────────────
@@ -247,6 +248,8 @@ else
 
   info "Downloading ${ZE_DEB_NAME}..."
   ZE_TMP=$(mktemp -d)
+  # shellcheck disable=SC2064
+  trap "rm -rf '$ZE_TMP'" EXIT
   curl -fsSL -o "$ZE_TMP/libze1.deb" "$ZE_DEB_URL"
   sudo dpkg -i "$ZE_TMP/libze1.deb" || sudo apt-get install -f -y
   sudo ldconfig
