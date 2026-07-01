@@ -115,9 +115,36 @@ log "Checking prerequisites..."
 log "Installing llama-swap..."
 mkdir -p "$HOME/.local/bin"
 
-if command -v llama-swap >/dev/null 2>&1; then
-  log "llama-swap already on PATH, skipping download."
+# Determine target version: if "latest", fetch from GitHub.
+if [[ "$LLAMA_SWAP_VERSION" == "latest" ]]; then
+  info "Fetching latest llama-swap version..."
+  LLAMA_SWAP_LATEST=$(curl -fsSL \
+    "https://api.github.com/repos/mostlygeek/llama-swap/releases/latest" \
+    | grep '"tag_name"' | head -1 | cut -d '"' -f 4 || true)
+  # Strip leading 'v' if present, e.g. "v234" -> "234"
+  LLAMA_SWAP_LATEST="${LLAMA_SWAP_LATEST#v}"
+  info "Latest version: $LLAMA_SWAP_LATEST"
 else
+  LLAMA_SWAP_LATEST="$LLAMA_SWAP_VERSION"
+fi
+
+SKIP_SWAP=0
+if command -v llama-swap >/dev/null 2>&1; then
+  INSTALLED_SWAP=$(llama-swap version 2>/dev/null | grep -oP 'version:\s*\K[0-9]+' || true)
+  if [[ -n "$INSTALLED_SWAP" ]]; then
+    info "llama-swap already installed: $INSTALLED_SWAP"
+    if [[ "$INSTALLED_SWAP" -ge "$LLAMA_SWAP_LATEST" ]] 2>/dev/null; then
+      info "Version is current — skipping download."
+      SKIP_SWAP=1
+    else
+      info "Installed version ($INSTALLED_SWAP) is older than target ($LLAMA_SWAP_LATEST) — upgrading."
+    fi
+  else
+    warn "Could not parse llama-swap version — will re-install."
+  fi
+fi
+
+if [[ "$SKIP_SWAP" -eq 0 ]]; then
   # Fetch latest Linux amd64 release archive
   LLAMA_SWAP_URL=$(curl -fsSL \
     "https://api.github.com/repos/mostlygeek/llama-swap/releases/latest" \
