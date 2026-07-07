@@ -17,18 +17,35 @@ This stack is designed to work with any Intel Battlemage (Xe2) GPU, though it ha
 
 ## Architecture
 
-```
-OpenAI client
-      ↓  POST /v1/chat/completions  { "model": "<any registered model>" }
-http://127.0.0.1:8080
- llama-swap                          ← model registry: `$LLAMA_SWAP_CONFIG` (default: `~/.config/llama-swap/llama-swap.yaml`)
-       ↓  routes to group, swaps within group, runs groups in parallel
-http://127.0.0.1:9000  http://127.0.0.1:9001  ...
-   llama-server (SYCL) ─────→ Intel Battlemage GPU (XMX matmul)
-                               GGUFs: `$MODELS_DIR` (default: `~/.lmstudio/models/`)
-```
+The base architecture of this solution is an llama-swap server that proxies requests to backend llama-servers hosting models on the Xe2 GPU.  This allows any OpenAI compatible client to query llama-swap to load any available model.
 
-Models within the same group swap in and out of VRAM on demand. Models in different groups can run simultaneously (controlled by the `exclusive` setting in `llama-swap.yaml`). First request to a cold model triggers a load (~20–30 s for a 27B model); subsequent requests stay warm. Loaded models go idle and unload if no traffic after the timeout period specified in the service setup script.
+```mermaid
+flowchart LR
+
+  client@{ shape: terminal, label: "OpenAI API client \n (opencode, OpenClaw)"}
+  p@{ shape: doc, label: "POST \n /v1/chat/completions \n { model: '...' }" }
+  llamaswap@{ shape: subprocess, label: "**llama-swap** \n HTTP Server"}
+  lsd@{ shape: decision, label: "Map model \n to server"}
+  
+  client --- p
+  p  -->|"http://0.0.0.0:8080"|llamaswap
+  llamaswap --- lsd
+
+
+  subgraph GPU["Intel Battlemage GPU (Xe2)"]
+    direction TD
+    XE[xe kernel driver] --> CR[compute-runtime] --> LZ[Level Zero] --> OA[oneAPI / SYCL]
+  end
+
+  lsd -->|"http://127.0.0.1:9000"| ga["llama-server A"] --> GPU
+  lsd -->|"http://127.0.0.1:9001"| gb["llama-server B"] --> GPU
+  lsd -->|"http://127.0.0.1:..."| gn["llama-server ..."] --> GPU
+
+  GPU ---> MODELS 
+    
+  MODELS["GGUF model files"]
+```
+One or more swap groups can be defined in llama-swap and each group can host one or more models.  Models within the same group swap in and out of VRAM on demand. Models in different groups can run simultaneously (controlled by the `exclusive` setting in `llama-swap.yaml`). First request to a cold model triggers a load (~20–30 s for a 27B model); subsequent requests stay warm. Loaded models go idle and unload if no traffic after the timeout period specified in the service setup script.
 
 GGUFs live under `$MODELS_DIR` (default: `~/.lmstudio/models/`) so LM Studio sees them too — both stacks coexist. Use LM Studio or any other tool to download models, then run scripts 03 and 04 to register them.
 
