@@ -8,12 +8,12 @@ This stack is designed to work with any Intel Battlemage (Xe2) GPU, though it ha
 
 | GPU | Compatible |
 |---|---|
-| Intel® Arc™ B570 Graphics | ❔ |
-| Intel® Arc™ B580 Graphics | ❔ |
-| Intel® Arc™ Pro B50 Graphics | ❔ |
-| Intel® Arc™ Pro B60 Graphics | ❔ |
-| Intel® Arc™ Pro B65 Graphics | ❔ |
-| Intel® Arc™ Pro B70 Graphics | ✅ |
+| Intel® Arc™ B570 Graphics | ⚠️ untested |
+| Intel® Arc™ B580 Graphics | ⚠️ untested |
+| Intel® Arc™ Pro B50 Graphics | ⚠️ untested |
+| Intel® Arc™ Pro B60 Graphics | ⚠️ untested |
+| Intel® Arc™ Pro B65 Graphics | ⚠️ untested |
+| Intel® Arc™ Pro B70 Graphics | ✅ verified |
 
 ## Architecture
 
