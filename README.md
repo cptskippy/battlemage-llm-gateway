@@ -15,6 +15,8 @@ This stack is designed to work with any Intel Battlemage (Xe2) GPU, though it ha
 | Intel® Arc™ Pro B65 Graphics | ⚠️ untested |
 | Intel® Arc™ Pro B70 Graphics | ✅ verified |
 
+This stack is fully compatible with GPU passthrough to a VM. It has been tested on Ubuntu 24.04 running as a Proxmox LXC/container and VM with the Battlemage GPU passed through via PCI passthrough (VFIO). Ensure IOMMU is enabled in your host BIOS and that the GPU is properly bound to the VFIO driver before being assigned to the guest. The `01-install-firmware.sh` script includes a check for the `renderD128` device node and will advise a reboot if it's missing after driver load — this is common after initial VM setup with GPU passthrough.
+
 ## Architecture
 
 The base architecture of this solution is an llama-swap server that proxies requests to backend llama-servers hosting models on the Xe2 GPU.  This allows any OpenAI compatible client to query llama-swap to load any available model.
@@ -60,7 +62,7 @@ GGUFs live under `$MODELS_DIR` (default: `~/.lmstudio/models/`) so LM Studio see
 2. `bash 03-discover-models.sh` — generates per-model params from `llama.cpp.params.defaults`
 3. `bash 04-setup-service.sh` — builds `llama-swap.yaml`, configs, starts the service
 
-Scripts 03 and 04 are idempotent: safe to re-run whenever your model library changes. Script 03 skips existing `.params` files, so per-model customizations are preserved.
+Scripts 03 and 04 are idempotent: safe to re-run whenever your model library changes. Script 03 skips existing `.params` files, so per-model customizations are preserved. Both scripts skip models that have a corresponding `.ignore` file next to their GGUF.
 
 ## Quick Start
 
@@ -88,10 +90,9 @@ Total time: ~30–60 minutes (llama.cpp SYCL build is the longest step).
 |---|---|
 | `01-install-firmware.sh` | Clones `linux-firmware`, installs `bmg_guc_70.bin` and `bmg_huc.bin`, loads the `xe` driver, adds user to `render`/`video` groups |
 | `02-build-compute-stack.sh` | Installs Intel compute-runtime + IGC from GitHub releases, Level Zero loader (auto-detects latest version, upgrades if outdated), oneAPI (compiler/MKL/TBB), clones and builds `llama.cpp` with SYCL backend. Skips redundant steps when environment is already active. |
-| `03-discover-models.sh` | Scans `$MODELS_DIR` (default: `~/.lmstudio/models/`) for all `.gguf` files and generates per-model `llama.cpp.params` files from a shared defaults template |
-| `04-setup-service.sh` | Downloads `llama-swap` binary, installs `llm-swap` CLI helper, reads generated params files to build `llama-swap.yaml`, creates systemd user service, configures `opencode` and `pi`, enables linger, starts the service. Supports `DEFAULT_MODEL_ALIAS` to pick a specific default model. Verifies Level Zero GPU detection via `sycl-ls`. |
+| `03-discover-models.sh` | Scans `$MODELS_DIR` (default: `~/.lmstudio/models/`) for all `.gguf` files and generates per-model `llama.cpp.params` files from a shared defaults template. Models with a corresponding `.ignore` file (e.g., `model.gguf.ignore`) are skipped. |
+| `04-setup-service.sh` | Downloads `llama-swap` binary, installs `llm-swap` CLI helper, reads generated params files to build `llama-swap.yaml`, creates systemd user service, configures `opencode` and `pi`, enables linger, starts the service. Supports `DEFAULT_MODEL_ALIAS` to pick a specific default model. Skips models flagged with `.ignore` files. Verifies Level Zero GPU detection via `sycl-ls`. |
 | `bench-api.sh` | End-to-end API benchmark comparing direct llama-server vs llama-swap proxy. Measures TTFT, token throughput, and total time for streaming completions. |
-| `bench-llama-bench.sh` | Synthetic benchmark using llama.cpp's built-in `llama-bench`. Stops llama-swap to avoid VRAM contention, runs per-model benchmarks, then restarts the service. |
 
 ## Service Control
 
@@ -157,6 +158,8 @@ curl http://127.0.0.1:8080/v1/chat/completions \
 
 To customize per-model parameters (context size, temperature, etc.), edit the model's `.llama.cpp.params` file before re-running the scripts. Script 03 skips existing params files, so customizations are preserved.
 
+To exclude a model from the service without deleting it, create an empty `.ignore` file alongside the GGUF (e.g., `touch my-model.gguf.ignore`). Both scripts 03 and 04 will skip any model with a corresponding `.ignore` file. Remove the `.ignore` file to re-enable the model.
+
 ## File Locations
 
 | Component | Path |
@@ -178,11 +181,13 @@ Benchmarks run on Intel Arc Pro B70, Ubuntu 24.04, kernel 6.17. Prompt: 144 char
 
 | Model | Quant | llama.cpp TTFT | llama.cpp tok/s | llama-swap TTFT | llama-swap tok/s |
 |---|---|---|---|---|---|
-| qwen3-5-9b | Q4_K_M | 0.079s | 58.9 | 0.057s | 59.2 |
-| qwen3-6-27b | Q4_K_M | 0.181s | 23.5 | 0.127s | 23.6 |
-| qwen3-6-27b | Q6_K | 0.177s | 19.1 | 0.120s | 19.1 |
-| deepseek-r1-distill-qwen-32b | Q4_K_M | 0.178s | 20.6 | 0.148s | 20.6 |
-| gemma-4-31b-it | Q4_K_M | 0.969s | 18.4 | 0.986s | 18.4 |
+| deepseek-r1-distill-qwen-32b | Q4_K_M | 0.183s | 20.2 | 0.150s | 20.1 |
+| gemma-4-31b-it | Q4_K_M | 0.418s | 19.1 | 0.309s | 19.2 |
+| gemma-4-31b-it | QAT Q4-0 | 0.363s | 20.6 | 0.253s | 20.7 |
+| qwen3-5-9b | Q4_K_M | 0.114s | 59.7 | 0.093s | 59.6 |
+| qwen3-6-27b | Q4_K_M | 0.288s | 23.7 | 0.236s | 23.7 |
+| qwen3-6-27b | Q6_K | 0.284s | 19.2 | 0.230s | 19.2 |
+| qwen3-6-35b-a3b | Q4_K_M | 0.136s | 77.1 | 0.121s | 78.4 |
 
 llama-swap adds negligible overhead — in most cases TTFT is actually lower through the proxy due to connection reuse. Throughput is identical since token generation happens on the same llama-server backend.
 
