@@ -9,6 +9,10 @@
 #
 # Intended to be run before 04-setup-service.sh so that per-model parameters
 # are in place for llama-swap or any other tooling that consumes them.
+#
+# NOTE: This script will ignore models with a corresponding .ignore file
+# (named <gguf>.ignore in the same directory).
+#
 # =============================================================================
 
 set -euo pipefail
@@ -66,7 +70,7 @@ fi
 
 log "Found ${#GGUF_FILES[@]} GGUF file(s):"
 for f in "${GGUF_FILES[@]}"; do
-  log "  $f"
+  info "  $f"
 done
 
 # ── 2. Read defaults template ────────────────────────────────────────────────
@@ -87,12 +91,13 @@ if [[ ${#DEFAULT_LINES[@]} -eq 0 ]]; then
   die "Defaults file is empty or contains only comments."
 fi
 
-log "Loaded ${#DEFAULT_LINES[@]} default parameter lines."
+log "Loaded ${#DEFAULT_LINES[@]} default parameter lines from template."
 
 # ── 3. Write missing params files ────────────────────────────────────────────
 
 created=0
 skipped=0
+ignored=0
 
 # Derive a kebab-case alias from a GGUF filename (strips .gguf extension).
 _to_kebab() {
@@ -102,19 +107,26 @@ _to_kebab() {
     | sed -e 's/[^a-z0-9]/-/g' -e 's/-\+/-/g' -e 's/^-//;s/-$//'
 }
 
+log "Generating ${#GGUF_FILES[@]} GGUF file param file(s):"
 for gguf_path in "${GGUF_FILES[@]}"; do
+  if [[ -f "${gguf_path}.ignore" ]]; then
+    info "Ignored:  $gguf_path.ignore — skipping."
+    ignored=$((ignored + 1))
+    continue
+  fi
+
   gguf_dir="$(dirname "$gguf_path")"
   params_file="$gguf_dir/$(basename "$gguf_path").llama.cpp.params"
 
   if [[ -f "$params_file" ]]; then
-    log "  Already exists: $params_file — skipping."
+    info "Existing: $params_file — skipping."
     skipped=$((skipped + 1))
     continue
   fi
 
   model_name="$(_to_kebab "$(basename "$gguf_path")")"
 
-  log "  Creating $params_file  (alias=$model_name, port=$LLAMA_SERVER_PORT)..."
+  log "Creating: $params_file (alias=$model_name, port=$LLAMA_SERVER_PORT)..."
 
   # Write params file: substitute placeholders in each default line.
   {
@@ -138,7 +150,8 @@ cat <<SUMMARY
 
   GGUF files found : ${#GGUF_FILES[@]}
   Params created   : $created
-  Already exist    : $skipped
+  Params existing  : $skipped
+  Params ignored   : $ignored
 
   Shared server port: $LLAMA_SERVER_PORT
   Models directory  : $MODELS_DIR
