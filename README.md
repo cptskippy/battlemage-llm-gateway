@@ -93,6 +93,7 @@ Total time: ~30–60 minutes (llama.cpp SYCL build is the longest step).
 | `03-discover-models.sh` | Scans `$MODELS_DIR` (default: `~/.lmstudio/models/`) for all `.gguf` files and generates per-model `llama.cpp.params` files from a shared defaults template. Models with a corresponding `.ignore` file (e.g., `model.gguf.ignore`) are skipped. |
 | `04-setup-service.sh` | Downloads `llama-swap` binary, installs `llm-swap` CLI helper, reads generated params files to build `llama-swap.yaml`, creates systemd user service, configures `opencode` and `pi`, enables linger, starts the service. Supports `DEFAULT_MODEL_ALIAS` to pick a specific default model. Skips models flagged with `.ignore` files. Verifies Level Zero GPU detection via `sycl-ls`. |
 | `bench-api.sh` | End-to-end API benchmark comparing direct llama-server vs llama-swap proxy. Measures TTFT, token throughput, and total time for streaming completions. |
+| `check-updates.sh` | Checks all installed components (linux-firmware, compute-runtime, IGC, Level Zero loader, llama.cpp, llama-swap, opencode, pi) against their latest available releases and reports which ones can be updated. |
 
 ## Service Control
 
