@@ -245,6 +245,13 @@ while IFS= read -r -d '' gguf; do
     continue
   fi
 
+  # Skip mmproj files (vision projector weights, not loadable models)
+  basename_lower=$(basename "$gguf" | tr '[:upper:]' '[:lower:]')
+  if [[ "$basename_lower" == *mmproj* ]]; then
+    info "Model $gguf is an mmproj file — skipping."
+    continue
+  fi
+
   if [[ ! -f "$params_file" ]]; then
     warn "No params file for $gguf — skipping."
     continue

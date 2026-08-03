@@ -90,8 +90,8 @@ Total time: ~30–60 minutes (llama.cpp SYCL build is the longest step).
 |---|---|
 | `01-install-firmware.sh` | Clones `linux-firmware`, installs `bmg_guc_70.bin` and `bmg_huc.bin`, loads the `xe` driver, adds user to `render`/`video` groups |
 | `02-build-compute-stack.sh` | Installs Intel compute-runtime + IGC from GitHub releases, Level Zero loader (auto-detects latest version, upgrades if outdated), oneAPI (compiler/MKL/TBB), clones and builds `llama.cpp` with SYCL backend. Skips redundant steps when environment is already active. |
-| `03-discover-models.sh` | Scans `$MODELS_DIR` (default: `~/.lmstudio/models/`) for all `.gguf` files and generates per-model `llama.cpp.params` files from a shared defaults template. Models with a corresponding `.ignore` file (e.g., `model.gguf.ignore`) are skipped. |
-| `04-setup-service.sh` | Downloads `llama-swap` binary, installs `llm-swap` CLI helper, reads generated params files to build `llama-swap.yaml`, creates systemd user service, configures `opencode` and `pi`, enables linger, starts the service. Supports `DEFAULT_MODEL_ALIAS` to pick a specific default model. Skips models flagged with `.ignore` files. Verifies Level Zero GPU detection via `sycl-ls`. |
+| `03-discover-models.sh` | Scans `$MODELS_DIR` (default: `~/.lmstudio/models/`) for all `.gguf` files and generates per-model `llama.cpp.params` files from a shared defaults template. Models with a corresponding `.ignore` file (e.g., `model.gguf.ignore`) are skipped. Vision projector (mmproj) files are also skipped automatically. |
+| `04-setup-service.sh` | Downloads `llama-swap` binary, installs `llm-swap` CLI helper, reads generated params files to build `llama-swap.yaml`, creates systemd user service, configures `opencode` and `pi`, enables linger, starts the service. Supports `DEFAULT_MODEL_ALIAS` to pick a specific default model. Skips models flagged with `.ignore` files and vision projector (mmproj) files. Verifies Level Zero GPU detection via `sycl-ls`. |
 | `bench-api.sh` | End-to-end API benchmark comparing direct llama-server vs llama-swap proxy. Measures TTFT, token throughput, and total time for streaming completions. |
 | `check-updates.sh` | Checks all installed components (linux-firmware, compute-runtime, IGC, Level Zero loader, llama.cpp, llama-swap, opencode, pi) against their latest available releases and reports which ones can be updated. |
 
@@ -159,7 +159,7 @@ curl http://127.0.0.1:8080/v1/chat/completions \
 
 To customize per-model parameters (context size, temperature, etc.), edit the model's `.llama.cpp.params` file before re-running the scripts. Script 03 skips existing params files, so customizations are preserved.
 
-To exclude a model from the service without deleting it, create an empty `.ignore` file alongside the GGUF (e.g., `touch my-model.gguf.ignore`). Both scripts 03 and 04 will skip any model with a corresponding `.ignore` file. Remove the `.ignore` file to re-enable the model.
+To exclude a model from the service without deleting it, create an empty `.ignore` file alongside the GGUF (e.g., `touch my-model.gguf.ignore`). Both scripts 03 and 04 will skip any model with a corresponding `.ignore` file. Remove the `.ignore` file to re-enable the model. Vision projector (mmproj) files are also skipped automatically, as they're not standalone loadable models.
 
 ## File Locations
 
@@ -182,12 +182,14 @@ Benchmarks run on Intel Arc Pro B70, Ubuntu 24.04, kernel 6.17. Prompt: 144 char
 
 | Model | Quant | llama.cpp TTFT | llama.cpp tok/s | llama-swap TTFT | llama-swap tok/s |
 |---|---|---|---|---|---|
-| deepseek-r1-distill-qwen-32b | Q4_K_M | 0.183s | 20.2 | 0.150s | 20.1 |
+| deepseek-r1-distill-qwen-32b | Q4_K_M | 0.180s | 20.3 | 0.151s | 20.3 |
 | gemma-4-31b-it | Q4_K_M | 0.418s | 19.1 | 0.309s | 19.2 |
-| gemma-4-31b-it | QAT Q4-0 | 0.363s | 20.6 | 0.253s | 20.7 |
-| qwen3-5-9b | Q4_K_M | 0.114s | 59.7 | 0.093s | 59.6 |
+| gemma-4-31b-it | QAT Q4-0 | 0.358s | 21.0 | 0.245s | 21.0 |
+| gemma-4-26b-a4b-it | Q4_K_M | 0.145s | 52.3 | 0.118s | 52.4 |
+| qwen3-5-9b | Q4_K_M | 0.098s | 61.4 | 0.079s | 61.3 |
 | qwen3-6-27b | Q4_K_M | 0.288s | 23.7 | 0.236s | 23.7 |
-| qwen3-6-27b | Q6_K | 0.284s | 19.2 | 0.230s | 19.2 |
+| qwen3-6-27b | Q6_K | 0.273s | 19.2 | 0.216s | 19.3 |
+| qwen3-6-27b | Q8_0 | 0.269s | 14.7 | 0.215s | 14.8 |
 | qwen3-6-35b-a3b | Q4_K_M | 0.136s | 77.1 | 0.121s | 78.4 |
 
 llama-swap adds negligible overhead — in most cases TTFT is actually lower through the proxy due to connection reuse. Throughput is identical since token generation happens on the same llama-server backend.

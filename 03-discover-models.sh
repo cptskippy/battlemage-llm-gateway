@@ -115,6 +115,14 @@ for gguf_path in "${GGUF_FILES[@]}"; do
     continue
   fi
 
+  # Skip mmproj files (vision projector weights, not loadable models)
+  basename_lower=$(basename "$gguf_path" | tr '[:upper:]' '[:lower:]')
+  if [[ "$basename_lower" == *mmproj* ]]; then
+    info "Ignored:  $gguf_path is an mmproj file — skipping."
+    ignored=$((ignored + 1))
+    continue
+  fi
+
   gguf_dir="$(dirname "$gguf_path")"
   params_file="$gguf_dir/$(basename "$gguf_path").llama.cpp.params"
 
