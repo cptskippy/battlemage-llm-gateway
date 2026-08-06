@@ -77,6 +77,7 @@ log "Installing system build dependencies..."
 sudo apt-get update -qq
 sudo apt-get install -y \
   build-essential \
+  ccache \
   cmake \
   ninja-build \
   git \
@@ -415,6 +416,8 @@ cmake -S . -B build -G Ninja \
   -DGGML_SYCL=ON \
   -DCMAKE_C_COMPILER=icx \
   -DCMAKE_CXX_COMPILER=icpx \
+  -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+  -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
   -DCMAKE_BUILD_TYPE=Release
 
 cmake --build build -j"$JOBS"

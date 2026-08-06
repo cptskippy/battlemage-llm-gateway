@@ -84,7 +84,7 @@ LINGER_USER="${USER}"
 
 # Default model alias — must match one of the discovered --alias values.
 # Leave empty or set to a non-existent alias to fall back to the first discovered model.
-DEFAULT_MODEL_ALIAS="qwen3-6-27b-q6-k"
+DEFAULT_MODEL_ALIAS="qwen3-6-27b-q8-0"
 
 # ─────────────────────────────────────────────────────────────────────────────
 
