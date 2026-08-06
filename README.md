@@ -51,19 +51,6 @@ One or more swap groups can be defined in llama-swap and each group can host one
 
 GGUFs live under `$MODELS_DIR` (default: `~/.lmstudio/models/`) so LM Studio sees them too — both stacks coexist. Use LM Studio or any other tool to download models, then run scripts 03 and 04 to register them.
 
-## Workflow
-
-**Initial setup** (run once per machine):
-1. `01-install-firmware.sh` — firmware, driver, permissions
-2. `02-build-compute-stack.sh` — Intel compute stack + llama.cpp build
-
-**Add or update models** (run any time after initial setup):
-1. Drop GGUF files into `$MODELS_DIR` (default: `~/.lmstudio/models/`) (e.g., via LM Studio)
-2. `bash 03-discover-models.sh` — generates per-model params from `llama.cpp.params.defaults`
-3. `bash 04-setup-service.sh` — builds `llama-swap.yaml`, configs, starts the service
-
-Scripts 03 and 04 are idempotent: safe to re-run whenever your model library changes. Script 03 skips existing `.params` files, so per-model customizations are preserved. Both scripts skip models that have a corresponding `.ignore` file next to their GGUF.
-
 ## Quick Start
 
 Run the four scripts in order on Ubuntu 24.04+ with kernel ≥ 6.8 (≥ 6.17 preferred) and a Battlemage GPU visible to `lspci`:
@@ -95,6 +82,8 @@ Total time: ~30–60 minutes (llama.cpp SYCL build is the longest step).
 | `bench-api.sh` | End-to-end API benchmark comparing direct llama-server vs llama-swap proxy. Measures TTFT, token throughput, and total time for streaming completions. |
 | `check-updates.sh` | Checks all installed components (linux-firmware, compute-runtime, IGC, Level Zero loader, llama.cpp, llama-swap, opencode, pi) against their latest available releases and reports which ones can be updated. |
 
+Scripts 03 and 04 are idempotent: safe to re-run whenever your model library changes. Script 03 skips existing `.params` files, so per-model customizations are preserved. Both scripts skip models that have a corresponding `.ignore` file next to their GGUF.
+
 ## Service Control
 
 ```bash
@@ -110,6 +99,8 @@ journalctl --user -u llama-swap.service -f
 
 ## CLI Helper: `llm-swap`
 
+A bundled helper script (shipped in this repo) for managing models in llama-swap.
+
 ```bash
 llm-swap <model>                            # preload (returns when warm — ~20–30 s cold, instant if already loaded)
 llm-swap list                               # configured models
@@ -120,6 +111,8 @@ llm-swap unload <model>                     # unload a specific model
 
 ## Using opencode
 
+`opencode` is installed via `npm install -g opencode-ai` (npm package name differs from command name).
+
 ```bash
 opencode                                    # interactive TUI, default model (set via DEFAULT_MODEL_ALIAS in 04-setup-service.sh)
 opencode -m local/<model>                   # interactive TUI, specific model
@@ -129,6 +122,8 @@ opencode run "summarize this file" @file.py  # one-shot, default model
 Inside the TUI, `/model` switches between models transparently.
 
 ## Using pi
+
+`pi` is installed via `npm install -g @mariozechner/pi-coding-agent` (npm package name differs from command name).
 
 ```bash
 pi --provider local --model <model>
@@ -151,11 +146,11 @@ curl http://127.0.0.1:8080/v1/chat/completions \
 
 1. Drop the GGUF under `$MODELS_DIR` (default: `~/.lmstudio/models/`) (e.g., via LM Studio).
 2. Re-run:
-   ```bash
-   bash 03-discover-models.sh
-   bash 04-setup-service.sh
-   ```
-   This auto-generates params from `llama.cpp.params.defaults`, rebuilds `llama-swap.yaml`, and refreshes opencode/pi configs. Script 04 starts the service automatically.
+    ```bash
+    bash 03-discover-models.sh
+    bash 04-setup-service.sh
+    ```
+    This auto-generates params from `llama.cpp.params.defaults`, rebuilds `llama-swap.yaml`, and refreshes opencode/pi configs. Script 04 starts the service automatically.
 
 To customize per-model parameters (context size, temperature, etc.), edit the model's `.llama.cpp.params` file before re-running the scripts. Script 03 skips existing params files, so customizations are preserved.
 
@@ -168,7 +163,7 @@ To exclude a model from the service without deleting it, create an empty `.ignor
 | llama.cpp build (`LLAMA_SERVER_BIN`) | `~/llama.cpp/build/bin/llama-server` (default) |
 | llama-swap binary | `~/.local/bin/llama-swap` |
 | llama-swap config (`LLAMA_SWAP_CONFIG`) | `~/.config/llama-swap/llama-swap.yaml` (default) |
-| params defaults template | `llama.cpp.params.defaults` (in repo) |
+| params defaults template | `llama.cpp.params.defaults` (in repo) — contains placeholders `__MODEL_NAME__` and `__PORT__` substituted per-model |
 | per-model params | `<gguf>.llama.cpp.params` (next to each GGUF) |
 | systemd unit | `~/.config/systemd/user/llama-swap.service` |
 | opencode config | `~/.config/opencode/opencode.json` |
@@ -176,21 +171,34 @@ To exclude a model from the service without deleting it, create an empty `.ignor
 | GGUFs (`MODELS_DIR`) | `~/.lmstudio/models/` (default) |
 | Intel oneAPI | `/opt/intel/oneapi/` |
 
+## Benchmarks
+
+Measure TTFT (time to first token), throughput, and total time for streaming completions, comparing direct llama-server vs llama-swap proxy.
+
+```bash
+./bench-api.sh                          # benchmark all configured models
+./bench-api.sh qwen3-6-27b-q4-k-m       # benchmark a specific model
+```
+
+Results are saved to `bench-results/`.
+
 ## Performance
 
 Benchmarks run on Intel Arc Pro B70, Ubuntu 24.04, kernel 6.17. Prompt: 144 chars, 512 max tokens, temperature 0.2, seed 42, 3 runs averaged. Models that failed to produce valid results are excluded.
 
 | Model | Quant | llama.cpp TTFT | llama.cpp tok/s | llama-swap TTFT | llama-swap tok/s |
 |---|---|---|---|---|---|
-| deepseek-r1-distill-qwen-32b | Q4_K_M | 0.180s | 20.3 | 0.151s | 20.3 |
-| gemma-4-31b-it | Q4_K_M | 0.418s | 19.1 | 0.309s | 19.2 |
-| gemma-4-31b-it | QAT Q4-0 | 0.358s | 21.0 | 0.245s | 21.0 |
+| bonsai-27b | Q1_0 | 0.253s | 24.2 | 0.200s | 24.3 |
+| deepseek-r1-distill-qwen-32b | Q4_K_M | 0.181s | 20.3 | 0.151s | 20.3 |
 | gemma-4-26b-a4b-it | Q4_K_M | 0.145s | 52.3 | 0.118s | 52.4 |
-| qwen3-5-9b | Q4_K_M | 0.098s | 61.4 | 0.079s | 61.3 |
+| gemma-4-31b-it | Q4_K_M | 0.418s | 19.1 | 0.309s | 19.2 |
+| gemma-4-31b-it | QAT Q4-0 | 0.372s | 20.9 | 0.245s | 21.0 |
+| qwen3-5-9b | Q4_K_M | 0.098s | 60.2 | 0.086s | 60.0 |
 | qwen3-6-27b | Q4_K_M | 0.288s | 23.7 | 0.236s | 23.7 |
-| qwen3-6-27b | Q6_K | 0.273s | 19.2 | 0.216s | 19.3 |
-| qwen3-6-27b | Q8_0 | 0.269s | 14.7 | 0.215s | 14.8 |
+| qwen3-6-27b | Q6_K | 0.265s | 19.3 | 0.214s | 19.3 |
+| qwen3-6-27b | Q8_0 | 0.274s | 14.7 | 0.226s | 14.7 |
 | qwen3-6-35b-a3b | Q4_K_M | 0.136s | 77.1 | 0.121s | 78.4 |
+| qwen3-6-35b-a3b | Q6_K | 0.128s | 76.3 | 0.103s | 76.8 |
 
 llama-swap adds negligible overhead — in most cases TTFT is actually lower through the proxy due to connection reuse. Throughput is identical since token generation happens on the same llama-server backend.
 
@@ -209,12 +217,13 @@ llama-swap adds negligible overhead — in most cases TTFT is actually lower thr
 
 ## Credits
 
-This project is based heavily on the work of:
+Based heavily on:
 
-- **[jeffgrover/b70-setup](https://github.com/jeffgrover/b70-setup)** — The original llama.cpp SYCL + llama-swap stack for the Intel Arc Pro B70, including the service architecture, model swapping approach, `llm-swap` CLI helper pattern, and opencode/pi integration. The script structure, systemd service design, and configuration patterns are derived from this work.
-- **[Hal9000AIML/arc-pro-b70-inference-setup-ubuntu-server](https://github.com/Hal9000AIML/arc-pro-b70-inference-setup-ubuntu-server)** — The automated B70 setup scripts for Ubuntu Server, contributing the compute-runtime installation approach (GitHub releases, IGC packages, Level Zero loader), oneAPI targeted install, and the firmware/driver loading methodology.
+- **[jeffgrover/b70-setup](https://github.com/jeffgrover/b70-setup)** — Service architecture, model swapping approach, `llm-swap` CLI helper pattern, opencode/pi integration, systemd service design.
+- **[Hal9000AIML/arc-pro-b70-inference-setup-ubuntu-server](https://github.com/Hal9000AIML/arc-pro-b70-inference-setup-ubuntu-server)** — Compute-runtime installation from GitHub releases, oneAPI targeted install, firmware/driver loading methodology.
 
-Additional thanks to the upstream projects that make this possible:
+Upstream projects:
+
 - [ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp) — SYCL backend and inference engine
 - [mostlygeek/llama-swap](https://github.com/mostlygeek/llama-swap) — Model-swapping proxy
 - [intel/compute-runtime](https://github.com/intel/compute-runtime) — GPU drivers and Level-Zero backend
