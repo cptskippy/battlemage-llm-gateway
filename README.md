@@ -196,6 +196,7 @@ Benchmarks run on Intel Arc Pro B70, Ubuntu 24.04, kernel 6.17. Prompt: 144 char
 | qwen3-5-9b | Q4_K_M | 0.098s | 60.2 | 0.086s | 60.0 |
 | qwen3-6-27b | Q4_K_M | 0.288s | 23.7 | 0.236s | 23.7 |
 | qwen3-6-27b | Q6_K | 0.265s | 19.3 | 0.214s | 19.3 |
+| muse-glimmer-30b | K-Quant 17GB | 0.252s | 23.8 | 0.250s | 23.8 |
 | qwen3-6-27b | Q8_0 | 0.274s | 14.7 | 0.226s | 14.7 |
 | qwen3-6-35b-a3b | Q4_K_M | 0.136s | 77.1 | 0.121s | 78.4 |
 | qwen3-6-35b-a3b | Q6_K | 0.128s | 76.3 | 0.103s | 76.8 |
