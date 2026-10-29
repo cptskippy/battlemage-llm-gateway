@@ -131,22 +131,39 @@ fi
 
 echo ""
 
-# ── 3. Intel Graphics Compiler / IGC (GitHub releases, script 02) ────────────
+# ── 3. Intel Graphics Compiler / IGC (pinned by compute-runtime, script 02) ─
 
-echo -e "${BOLD}Intel Graphics Compiler (IGC)${RESET} (github: intel/intel-graphics-compiler)"
+echo -e "${BOLD}Intel Graphics Compiler (IGC)${RESET} (pinned by compute-runtime)"
 
 INSTALLED_IGC=$(dpkg -l intel-igc-core-2 2>/dev/null | awk '/^ii/{print $3}' | head -1 || true)
+# libze-intel-gpu1 depends on an exact IGC version — that pin (not the newest
+# tag in the IGC repo) is the installable target for this stack.
+IGC_PIN=$(dpkg -s libze-intel-gpu1 2>/dev/null | awk '/^Depends:/{print}' \
+  | sed -n 's/.*intel-igc-core-2 (>= \([^)]*\)).*/\1/p' | head -1)
 LATEST_IGC=$(latest_github_release "intel/intel-graphics-compiler")
 
 if [ -n "$INSTALLED_IGC" ]; then
-  INSTALLED_IGC_MAJOR=$(echo "$INSTALLED_IGC" | cut -d'.' -f1-2)
-  LATEST_IGC_MAJOR=$(strip_v "$(echo "$LATEST_IGC" | cut -d'.' -f1-2)")
-
-  if version_gte "$INSTALLED_IGC_MAJOR" "$LATEST_IGC_MAJOR"; then
-    ok "Installed: $INSTALLED_IGC | Latest: $LATEST_IGC"
+  if [ -n "$IGC_PIN" ]; then
+    if [ "$INSTALLED_IGC" = "$IGC_PIN" ]; then
+      ok "Installed: $INSTALLED_IGC (version pinned by compute-runtime)"
+      if [ "$LATEST_IGC" != "v$IGC_PIN" ]; then
+        info "Newer IGC release ($LATEST_IGC) pairs with a newer compute-runtime — no separate IGC update needed."
+      fi
+    else
+      warn "Installed: $INSTALLED_IGC" "Pinned by compute-runtime: $IGC_PIN (re-run 02 to fix)"
+      updates_available=1
+    fi
   else
-    warn "Installed: $INSTALLED_IGC" "$LATEST_IGC"
-    updates_available=1
+    # No pin found (older packaging) — fall back to comparing release tags
+    INSTALLED_IGC_MAJOR=$(echo "$INSTALLED_IGC" | cut -d'.' -f1-2)
+    LATEST_IGC_MAJOR=$(strip_v "$(echo "$LATEST_IGC" | cut -d'.' -f1-2)")
+
+    if version_gte "$INSTALLED_IGC_MAJOR" "$LATEST_IGC_MAJOR"; then
+      ok "Installed: $INSTALLED_IGC | Latest: $LATEST_IGC"
+    else
+      warn "Installed: $INSTALLED_IGC" "$LATEST_IGC"
+      updates_available=1
+    fi
   fi
 else
   fail "Intel Graphics Compiler (IGC)"

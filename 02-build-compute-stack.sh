@@ -93,6 +93,68 @@ sudo apt-get install -y \
   ocl-icd-opencl-dev \
   opencl-headers
 
+# ── IGC helpers ──────────────────────────────────────────────────────────────
+#
+# Since compute-runtime ~26.x, the Intel Graphics Compiler (IGC) is released
+# separately (intel/intel-graphics-compiler on GitHub) and the libze-intel-gpu
+# package pins the exact IGC version it requires. The "latest IGC release" is
+# therefore NOT necessarily installable — it must match the compute-runtime
+# pin. These helpers resolve and install the pinned version.
+
+# Print the IGC version pinned in a Depends field.
+# Usage: igc_pinned_version "<Depends line or dpkg -s output>"
+igc_pinned_version() {
+  echo "$1" | sed -n 's/.*intel-igc-core-2 (>= \([^)]*\)).*/\1/p' | head -1
+}
+
+# Download and install the IGC .debs for a given release version.
+# Usage: install_igc_version <version>   (e.g. 2.41.5)
+install_igc_version() {
+  local ver="$1"
+  local json f fname debs tmp
+  json=$(curl -fsSL \
+    "https://api.github.com/repos/intel/intel-graphics-compiler/releases/tags/v${ver}" || true)
+  if [ -z "$json" ]; then
+    warn "Could not fetch IGC release v${ver} metadata — skipping IGC installation."
+    return 1
+  fi
+  tmp=$(mktemp -d)
+  debs=""
+  for pattern in \
+    "intel-igc-core-2.*amd64.deb" \
+    "intel-igc-opencl-2.*amd64.deb"
+  do
+    f=$(echo "$json" \
+      | grep "browser_download_url" \
+      | grep "$pattern" \
+      | grep -v ".sha256" \
+      | head -1 \
+      | cut -d '"' -f 4 || true)
+    if [ -n "$f" ]; then
+      fname=$(basename "$f")
+      info "  Downloading $fname..."
+      curl -fsSL -o "$tmp/$fname" "$f"
+      debs="$debs $tmp/$fname"
+    else
+      warn "IGC package matching '$pattern' not found in release v${ver} — skipping."
+    fi
+  done
+  if [ -z "$debs" ]; then
+    rm -rf "$tmp"
+    warn "No IGC packages downloaded for v${ver} — skipping IGC installation."
+    return 1
+  fi
+  info "Installing IGC v${ver}..."
+  # shellcheck disable=SC2086
+  if sudo dpkg -i $debs || sudo apt-get install -f -y; then
+    info "Intel Graphics Compiler v${ver} installed."
+    rm -rf "$tmp"
+    return 0
+  fi
+  rm -rf "$tmp"
+  return 1
+}
+
 # ── 2. Intel compute-runtime ─────────────────────────────────────────────────
 #
 # The APT repo version is too old for Battlemage (Xe2).
@@ -175,44 +237,47 @@ if [ "$SKIP_CR" -eq 0 ]; then
     die "No .deb packages downloaded. Check: https://github.com/intel/compute-runtime/releases/tag/${CR_VERSION}"
   fi
 
-  # --- Intel Graphics Compiler (IGC) packages ---
-  # Since compute-runtime ~26.x, intel-igc-core and intel-igc-opencl are
-  # released separately from intel/intel-graphics-compiler on GitHub.
-  info "Fetching latest Intel Graphics Compiler (IGC) version..."
-  IGC_VERSION=$(curl -fsSL \
-    "https://api.github.com/repos/intel/intel-graphics-compiler/releases/latest" \
-    | grep '"tag_name"' | head -1 | cut -d '"' -f 4 || true)
-  info "IGC version: $IGC_VERSION"
+  # --- Intel Graphics Compiler (IGC) ---
+  # libze-intel-gpu1 Depends on an exact intel-igc-core-2 version, so install
+  # the matching IGC release BEFORE the compute-runtime packages.
+  LIBZE_DEB=$(grep "libze-intel-gpu" "$DEB_LIST" | head -1)
+  IGC_VERSION=$(igc_pinned_version "$(dpkg-deb -f "$LIBZE_DEB" Depends 2>/dev/null || true)")
+  if [ -n "$IGC_VERSION" ]; then
+    info "compute-runtime $CR_VERSION pins IGC $IGC_VERSION — installing IGC first."
+    install_igc_version "$IGC_VERSION" || die "Failed to install IGC $IGC_VERSION (required by compute-runtime $CR_VERSION)."
+  else
+    warn "libze-intel-gpu in $CR_VERSION does not pin an IGC version — skipping IGC install."
+    IGC_VERSION="(not pinned)"
+  fi
 
-  IGC_JSON=$(curl -fsSL \
-    "https://api.github.com/repos/intel/intel-graphics-compiler/releases/tags/${IGC_VERSION}")
-
-  for pattern in \
-    "intel-igc-core.*amd64.deb" \
-    "intel-igc-opencl.*amd64.deb"
-  do
-    f=$(echo "$IGC_JSON" \
-      | grep "browser_download_url" \
-      | grep "$pattern" \
-      | grep -v ".sha256" \
-      | head -1 \
-      | cut -d '"' -f 4 || true)
-    if [ -n "$f" ]; then
-      fname=$(basename "$f")
-      info "  Downloading $fname..."
-      curl -fsSL -o "$CR_TMP/$fname" "$f"
-      echo "$CR_TMP/$fname" >> "$DEB_LIST"
-    else
-      info "WARN: IGC package matching '$pattern' not found in release $IGC_VERSION — skipping."
-    fi
-  done
-
-  deb_count=$(wc -l < "$DEB_LIST")
-  info "Installing $deb_count packages..."
+  info "Installing $DEB_COUNT compute-runtime packages..."
   xargs sudo dpkg -i < "$DEB_LIST" || sudo apt-get install -f -y
 
   info "compute-runtime $CR_VERSION + IGC $IGC_VERSION installed."
   rm -rf "$CR_TMP"
+fi
+
+# ── 2.2. IGC consistency (compute-runtime already current) ──────────────────
+#
+# When the compute-runtime install was skipped, verify that the installed
+# IGC still matches the version pinned by the installed libze-intel-gpu
+# package. This self-heals partial installs and keeps the IGC/CR pair in
+# sync without re-downloading compute-runtime.
+
+if [ "$SKIP_CR" -eq 1 ]; then
+  log "Checking Intel Graphics Compiler (IGC)..."
+
+  IGC_PIN=$(igc_pinned_version "$(dpkg -s libze-intel-gpu1 2>/dev/null | awk '/^Depends:/{print}' || true)")
+  INSTALLED_IGC=$(dpkg -l intel-igc-core-2 2>/dev/null | awk '/^ii/{print $3}' | head -1 || true)
+
+  if [ -z "$IGC_PIN" ]; then
+    warn "Could not determine IGC version pinned by compute-runtime — skipping IGC check."
+  elif [ "$INSTALLED_IGC" = "$IGC_PIN" ]; then
+    info "IGC $INSTALLED_IGC matches the compute-runtime pin — up to date."
+  else
+    info "Installed IGC (${INSTALLED_IGC:-not installed}) differs from pinned version ($IGC_PIN) — installing $IGC_PIN."
+    install_igc_version "$IGC_PIN" || die "Failed to install IGC $IGC_PIN (required by installed compute-runtime)."
+  fi
 fi
 
 # ── 2.5. Level Zero loader ───────────────────────────────────────────────────
