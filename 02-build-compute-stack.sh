@@ -5,7 +5,7 @@
 #
 # Assumes:
 #   - Ubuntu 24.04 (or compatible)
-#   - Kernel 7.x (xe driver already present — no kernel changes needed)
+#   - Kernel >= 6.8 with xe driver support for Battlemage
 #   - Battlemage GPU connected and visible to lspci
 #   - You have sudo access
 #

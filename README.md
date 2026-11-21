@@ -76,9 +76,9 @@ Total time: ~30–60 minutes (llama.cpp SYCL build is the longest step).
 | Script | What it does |
 |---|---|
 | `01-install-firmware.sh` | Clones `linux-firmware`, installs `bmg_guc_70.bin` and `bmg_huc.bin`, loads the `xe` driver, adds user to `render`/`video` groups |
-| `02-build-compute-stack.sh` | Installs Intel compute-runtime + IGC from GitHub releases, Level Zero loader (auto-detects latest version, upgrades if outdated), oneAPI (compiler/MKL/TBB), clones and builds `llama.cpp` with SYCL backend. Skips redundant steps when environment is already active. |
+| `02-build-compute-stack.sh` | Installs Intel compute-runtime + IGC from GitHub releases, Level Zero loader (auto-detects latest version, upgrades if outdated), oneAPI (compiler/MKL/TBB), system build dependencies, clones and builds `llama.cpp` with SYCL backend, and persists oneAPI in `~/.bashrc`. Skips redundant steps when environment is already active. |
 | `03-discover-models.sh` | Scans `$MODELS_DIR` (default: `~/.lmstudio/models/`) for all `.gguf` files and generates per-model `llama.cpp.params` files from a shared defaults template. Models with a corresponding `.ignore` file (e.g., `model.gguf.ignore`) are skipped. Vision projector (mmproj) files are also skipped automatically. |
-| `04-setup-service.sh` | Downloads `llama-swap` binary, installs `llm-swap` CLI helper, reads generated params files to build `llama-swap.yaml`, creates systemd user service, configures `opencode` and `pi`, enables linger, starts the service. Supports `DEFAULT_MODEL_ALIAS` to pick a specific default model. Skips models flagged with `.ignore` files and vision projector (mmproj) files. Verifies Level Zero GPU detection via `sycl-ls`. |
+| `04-setup-service.sh` | Downloads `llama-swap` binary, installs `llm-swap` CLI helper, reads generated params files to build `llama-swap.yaml`, creates systemd user service, configures and installs (if missing) `opencode` and `pi`, enables linger, starts the service. Supports `DEFAULT_MODEL_ALIAS` to pick a specific default model. Skips models flagged with `.ignore` files and vision projector (mmproj) files. Verifies Level Zero GPU detection via `sycl-ls`. |
 | `bench-api.sh` | End-to-end API benchmark comparing direct llama-server vs llama-swap proxy. Measures TTFT, token throughput, and total time for streaming completions. |
 | `check-updates.sh` | Checks all installed components (linux-firmware, compute-runtime, IGC, Level Zero loader, llama.cpp, llama-swap, opencode, pi) against their latest available releases and reports which ones can be updated. |
 
@@ -198,6 +198,8 @@ Benchmarks run on Intel Arc Pro B70, Ubuntu 24.04, kernel 6.17. Prompt: 144 char
 | qwen3-6-27b | Q6_K | 0.265s | 19.3 | 0.214s | 19.3 |
 | muse-glimmer-30b | K-Quant 17GB | 0.252s | 23.8 | 0.250s | 23.8 |
 | qwen3-6-27b | Q8_0 | 0.274s | 14.7 | 0.226s | 14.7 |
+| qwen3-8-27b | Q6_K | 0.165s | 21.7 | 0.142s | 21.7 |
+| qwen3-8-27b-turbo | Q6_K | 0.167s | 20.3 | 0.141s | 20.3 |
 | qwen3-6-35b-a3b | Q4_K_M | 0.136s | 77.1 | 0.121s | 78.4 |
 | qwen3-6-35b-a3b | Q6_K | 0.128s | 76.3 | 0.103s | 76.8 |
 
